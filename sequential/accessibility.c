@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <error.h>
 #include <limits.h>
-#include <libxml2/include/libxml/parser.h>
-#include <libxml2/include/libxml/tree.h>
+#include "libxml/parser.h"
+#include "libxml/tree.h"
 
 // step 1: figure out how to integrate Libxml2
 /**
@@ -38,6 +38,7 @@ print_element_names(xmlNode * a_node)
 int
 main(int argc, char **argv)
 {
+    printf("start\n");
     xmlDoc *doc = NULL;
     xmlNode *root_element = NULL;
 
@@ -71,6 +72,8 @@ main(int argc, char **argv)
      *have been allocated by the parser.
      */
     xmlCleanupParser();
+    fprintf(stderr, "here\n");
+    putchar('\n');
 
     return 0;
 }

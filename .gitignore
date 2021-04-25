@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+Makefile
+**/libxml2-2.7.3
+**/sequential/bin
+**/sequential/include
+**/sequential/lib
+**/sequential/share

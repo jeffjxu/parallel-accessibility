@@ -1,16 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <assert.h>
 #include <stdint.h>
 #include <error.h>
 #include <limits.h>
+#include <time.h>
+#include <pthread.h>
 #include "libxml/parser.h"
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
 
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
+int NCORES = -1;
 
 // print the DOM tree
 void print_properties(xmlNode *node) {
@@ -24,19 +28,29 @@ void print_properties(xmlNode *node) {
 }
 
 // check if a tag has alt text
+// Parallelized this while loop like this after viewing http://web.engr.oregonstate.edu/~mjb/cs575/Handouts/tasks.1pp.pdf slide 9
 // :input node (xmlNode*) - a parsed node of the DOM tree
 // :output none - increments ALT_COUNT if tag has alt text
 void check_alt_text(xmlNode *node) {
-    xmlAttr *property = node->properties;
-    while (property != NULL) {
-        const xmlChar *name = property->name;
-        if (strcmp((const char*)name, "alt") == 0) {
-            xmlChar *value = xmlGetProp(node, name);
-            if (strcmp((const char*)value, "") != 0) {
-                ALT_COUNT++;
+    #pragma omp parallel default(none)
+    {
+        #pragma omp single default(none) 
+        {
+            xmlAttr *property = node->properties;
+            while (property != NULL) {
+
+                #pragma omp task firstprivate(property)
+                const xmlChar *name = property->name;
+                if (strcmp((const char*)name, "alt") == 0) {
+                    xmlChar *value = xmlGetProp(node, name);
+                    if (strcmp((const char*)value, "") != 0) {
+                        ALT_COUNT++;
+                    }
+                }
+                property = property->next;
             }
         }
-        property = property->next;
+        //#pragma omp taskwait // may not be needed for this funciton
     }
 }
 
@@ -62,6 +76,7 @@ void traverse_dom_tree(xmlNode *node, int depth) {
         return;
     }
 
+    #pragma omp parallel for num_threads(NCORES)
     for (cur_node = node; cur_node; cur_node = cur_node->next) 
     {
         if (cur_node->type == XML_ELEMENT_NODE) 
@@ -73,6 +88,7 @@ void traverse_dom_tree(xmlNode *node, int depth) {
                 check_alt_text(cur_node);
             }
         }
+        #pragma omp task
         traverse_dom_tree(cur_node->children, depth++);
     }
 }
@@ -81,11 +97,13 @@ int main(int argc, char **argv)  {
     htmlDocPtr doc;
     xmlNode *root_element = NULL;
 
-    if (argc != 2)  
+    if (argc != 3)  
     {
-        printf("\nInvalid argument\n");
-        return(1);
+        error_exit("Expecting two arguments: [file name] [processor count]\n");
     }
+
+    NCORES = atoi(argv[2]);
+    if(NCORES < 1) error_exit("Illegal core count: %d\n", NCORES);
 
     /* Macro to check API for match with the DLL we are using */
     LIBXML_TEST_VERSION    
@@ -105,9 +123,17 @@ int main(int argc, char **argv)  {
         xmlFreeDoc(doc);
         return 0;
     }
-
+    
+    // took timing code from wsp.c from assignment 3
+    struct timespec before, after;
     printf("Root Node is %s\n", root_element->name);
+    clock_gettime(0, &before); // "0" should be CLOCK_REALTIME but vscode thinks it undefined for some reason
     traverse_dom_tree(root_element, 0);
+    clock_gettime(0, &after); // same here
+    double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
+    putchar('\n');
+    printf("============ Time ============\n");
+    printf("Time: %.3f ms (%.3f s)\n", delta_ms, delta_ms / 1000.0);
     printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
 
     xmlFreeDoc(doc);       // free document

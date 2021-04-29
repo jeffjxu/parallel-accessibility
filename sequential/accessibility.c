@@ -9,7 +9,11 @@
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
 
-void check_properties(xmlNode *node) {
+int IMAGE_COUNT = 0;
+int ALT_COUNT = 0;
+
+// print the DOM tree
+void print_properties(xmlNode *node) {
     xmlAttr *property = node->properties;
     while (property != NULL) {
         const xmlChar *name = property->name;
@@ -19,35 +23,63 @@ void check_properties(xmlNode *node) {
     }
 }
 
-void traverse_dom_trees(xmlNode * a_node) {
+// check if a tag has alt text
+// :input node (xmlNode*) - a parsed node of the DOM tree
+// :output none - increments ALT_COUNT if tag has alt text
+void check_alt_text(xmlNode *node) {
+    xmlAttr *property = node->properties;
+    while (property != NULL) {
+        const xmlChar *name = property->name;
+        if (strcmp((const char*)name, "alt") == 0) {
+            xmlChar *value = xmlGetProp(node, name);
+            if (strcmp((const char*)value, "") != 0) {
+                ALT_COUNT++;
+            }
+        }
+        property = property->next;
+    }
+}
+
+// check if alt text is needed for a tag
+// :input node (xmlNode*) - a parsed node of the DOM tree
+// :output bool - true if alt text is needed, false otherwise
+bool check_if_alt_needed(xmlNode *node) {
+    const char *name = (const char*)node->name;
+    return strcmp(name, "img") == 0 ||
+           strcmp(name, "area") == 0 ||
+           strcmp(name, "input") == 0;
+}
+
+// traverse the DOM tree
+// :input node (xmlNode*) - a parsed node of the DOM tree
+// :input depth (int) - recursion depth
+// :output none - calculate accessibility score
+void traverse_dom_tree(xmlNode *node, int depth) {
     xmlNode *cur_node = NULL;
 
-    if(NULL == a_node)
+    if(NULL == node)
     {
-        //printf("Invalid argument a_node %p\n", a_node);
         return;
     }
 
-    for (cur_node = a_node; cur_node; cur_node = cur_node->next) 
+    for (cur_node = node; cur_node; cur_node = cur_node->next) 
     {
         if (cur_node->type == XML_ELEMENT_NODE) 
         {
-            /* Check for if current node should be exclude or not */
-            printf("Node type: Text, name: %s\n", cur_node->name);
-            check_properties(cur_node);
+            // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
+            // print_properties(cur_node);
+            if (check_if_alt_needed(cur_node)) {
+                IMAGE_COUNT++;
+                check_alt_text(cur_node);
+            }
         }
-        else if(cur_node->type == XML_TEXT_NODE)
-        {
-            /* Process here text node, It is available in cpStr :TODO: */
-            printf("node type: Text, node content: %s,  content length %d\n", (char *)cur_node->content, (int)strlen((char *)cur_node->content));
-        }
-        traverse_dom_trees(cur_node->children);
+        traverse_dom_tree(cur_node->children, depth++);
     }
 }
 
 int main(int argc, char **argv)  {
     htmlDocPtr doc;
-    xmlNode *roo_element = NULL;
+    xmlNode *root_element = NULL;
 
     if (argc != 2)  
     {
@@ -65,90 +97,20 @@ int main(int argc, char **argv)  {
         return 0;
     }
 
-    roo_element = xmlDocGetRootElement(doc);
+    root_element = xmlDocGetRootElement(doc);
 
-    if (roo_element == NULL) 
+    if (root_element == NULL) 
     {
         fprintf(stderr, "empty document\n");
         xmlFreeDoc(doc);
         return 0;
     }
 
-    printf("Root Node is %s\n", roo_element->name);
-    traverse_dom_trees(roo_element);
+    printf("Root Node is %s\n", root_element->name);
+    traverse_dom_tree(root_element, 0);
+    printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
 
     xmlFreeDoc(doc);       // free document
     xmlCleanupParser();    // Free globals
     return 0;
 }
-
-
-// // step 1: figure out how to integrate Libxml2
-// /**
-//  * print_element_names:
-//  * @a_node: the initial xml node to consider.
-//  *
-//  * Prints the names of the all the xml elements
-//  * that are siblings or children of a given xml node.
-//  */
-// static void
-// print_element_names(xmlNode * a_node)
-// {
-//     xmlNode *cur_node = NULL;
-
-//     for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
-//         if (cur_node->type == XML_ELEMENT_NODE) {
-//             printf("node type: Element, name: %s\n", cur_node->name);
-//         }
-
-//         print_element_names(cur_node->children);
-//     }
-// }
-
-// /**
-//  * Simple example to parse a file called "file.xml", 
-//  * walk down the DOM, and print the name of the 
-//  * xml elements nodes.
-//  */
-// int
-// main(int argc, char **argv)
-// {
-//     printf("start\n");
-//     xmlDoc *doc = NULL;
-//     xmlNode *root_element = NULL;
-
-//     if (argc != 2)
-//         return(1);
-
-//     /*
-//      * this initialize the library and check potential ABI mismatches
-//      * between the version it was compiled for and the actual shared
-//      * library used.
-//      */
-//     LIBXML_TEST_VERSION
-
-//     /*parse the file and get the DOM */
-//     doc = xmlReadFile(argv[1], NULL, 0);
-
-//     if (doc == NULL) {
-//         printf("error: could not parse file %s\n", argv[1]);
-//     }
-
-//     /*Get the root element node */
-//     root_element = xmlDocGetRootElement(doc);
-
-//     print_element_names(root_element);
-
-//     /*free the document */
-//     xmlFreeDoc(doc);
-
-//     /*
-//      *Free the global variables that may
-//      *have been allocated by the parser.
-//      */
-//     xmlCleanupParser();
-//     fprintf(stderr, "here\n");
-//     putchar('\n');
-
-//     return 0;
-// }

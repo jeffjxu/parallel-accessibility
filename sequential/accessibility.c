@@ -11,6 +11,7 @@
 #include "libxml/parser.h"
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
+#include <omp.h>
 
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
@@ -28,19 +29,18 @@ void print_properties(xmlNode *node) {
 }
 
 // check if a tag has alt text
-// Parallelized this while loop like this after viewing http://web.engr.oregonstate.edu/~mjb/cs575/Handouts/tasks.1pp.pdf slide 9
+// Parallelized this while loop like this after viewing http://web.engr.oregonstate.edu/~mjb/cs575/Handouts/tasks.1pp.pdf slide 9 but this causes slowdown
 // :input node (xmlNode*) - a parsed node of the DOM tree
 // :output none - increments ALT_COUNT if tag has alt text
 void check_alt_text(xmlNode *node) {
-    #pragma omp parallel default(none)
-    {
-        #pragma omp single default(none) 
-        {
+    // #pragma omp parallel
+    // {
+    //     #pragma omp single 
+    //     {
             xmlAttr *property = node->properties;
             while (property != NULL) {
-
-                #pragma omp task firstprivate(property)
                 const xmlChar *name = property->name;
+                // #pragma omp task
                 if (strcmp((const char*)name, "alt") == 0) {
                     xmlChar *value = xmlGetProp(node, name);
                     if (strcmp((const char*)value, "") != 0) {
@@ -48,8 +48,8 @@ void check_alt_text(xmlNode *node) {
                     }
                 }
                 property = property->next;
-            }
-        }
+        //     }
+        // }
         //#pragma omp taskwait // may not be needed for this funciton
     }
 }
@@ -76,7 +76,7 @@ void traverse_dom_tree(xmlNode *node, int depth) {
         return;
     }
 
-    #pragma omp parallel for num_threads(NCORES)
+    //#pragma omp parallel for num_threads(NCORES)
     for (cur_node = node; cur_node; cur_node = cur_node->next) 
     {
         if (cur_node->type == XML_ELEMENT_NODE) 
@@ -88,10 +88,48 @@ void traverse_dom_tree(xmlNode *node, int depth) {
                 check_alt_text(cur_node);
             }
         }
-        #pragma omp task
-        traverse_dom_tree(cur_node->children, depth++);
+        if (depth < 2) {
+            #pragma omp task
+            traverse_dom_tree(cur_node->children, depth++);
+        } else {
+            traverse_dom_tree(cur_node->children, depth++);
+        }
     }
 }
+
+// void traverse_dom_tree(xmlNode *node, int depth) {
+//     // #pragma omp parallel
+//     // {
+//     //     #pragma omp single
+//     //     {
+//             xmlNode *cur_node = node;
+
+//             //#pragma omp parallel for num_threads(NCORES)
+//             while (node != NULL) 
+//             {
+//                 // #pragma omp task
+//                 // {
+//                     //for (cur_node = node; cur_node; cur_node = cur_node->next)
+//                     cur_node = node; 
+//                     while (cur_node != NULL)
+//                     {
+//                         if (cur_node->type == XML_ELEMENT_NODE) 
+//                         {
+//                             // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
+//                             // print_properties(cur_node);
+//                             if (check_if_alt_needed(cur_node)) {
+//                                 IMAGE_COUNT++;
+//                                 check_alt_text(cur_node);
+//                             }
+//                         }
+//                         cur_node = cur_node->next;
+//                     }
+//                 // }
+//                 node = node->children;
+//             }
+//     //     }
+//     // }
+// }
 
 int main(int argc, char **argv)  {
     htmlDocPtr doc;
@@ -99,11 +137,15 @@ int main(int argc, char **argv)  {
 
     if (argc != 3)  
     {
-        error_exit("Expecting two arguments: [file name] [processor count]\n");
+        fprintf(stderr,"Expecting two arguments: [file name] [processor count]\n");
+        return 0;
     }
 
     NCORES = atoi(argv[2]);
-    if(NCORES < 1) error_exit("Illegal core count: %d\n", NCORES);
+    if(NCORES < 1) {
+        fprintf(stderr, "Illegal core count: %d\n", NCORES);
+        return 0;
+    }
 
     /* Macro to check API for match with the DLL we are using */
     LIBXML_TEST_VERSION    

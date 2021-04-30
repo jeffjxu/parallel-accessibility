@@ -108,7 +108,7 @@ void traverse_dom_tree(xmlNode *node, int depth) {
             enqueue(q, node);
 
             xmlNode *cur_node;
-            //#pragma omp parallel for num_threads(NCORES)
+            #pragma omp parallel for num_threads(NCORES)
             while (!isEmpty(q)) 
             {
                 // #pragma omp task

@@ -17,6 +17,8 @@
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
 int NCORES = -1;
+q_t *Q = createQueue(1000000);
+
 
 // print the DOM tree
 void print_properties(xmlNode *node) {
@@ -69,72 +71,70 @@ bool check_if_alt_needed(xmlNode *node) {
 // :input node (xmlNode*) - a parsed node of the DOM tree
 // :input depth (int) - recursion depth
 // :output none - calculate accessibility score
-// void traverse_dom_tree(xmlNode *node, int depth) {
-//     xmlNode *cur_node = NULL;
+void traverse_dom_tree(xmlNode *node, int depth) {
+    printf("depth: %d\n", depth);
+    xmlNode *cur_node = NULL;
 
-//     if(NULL == node)
-//     {
-//         return;
-//     }
-
-//     //#pragma omp parallel for num_threads(NCORES)
-//     for (cur_node = node; cur_node; cur_node = cur_node->next) 
-//     {
-//         if (cur_node->type == XML_ELEMENT_NODE) 
-//         {
-//             // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
-//             // print_properties(cur_node);
-//             if (check_if_alt_needed(cur_node)) {
-//                 IMAGE_COUNT++;
-//                 check_alt_text(cur_node);
-//             }
-//         }
-//         if (depth < 2) {
-//             #pragma omp task
-//             traverse_dom_tree(cur_node->children, depth++);
-//         } else {
-//             traverse_dom_tree(cur_node->children, depth++);
-//         }
-//     }
-// }
+    if(NULL == node)
+    {
+        return;
+    }
+    #pragma omp parallel
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+        #pragma omp task 
+        {
+            if (cur_node->type == XML_ELEMENT_NODE) {
+                // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
+                // print_properties(cur_node);
+                if (check_if_alt_needed(cur_node)) {
+                    IMAGE_COUNT++;
+                    check_alt_text(cur_node);
+                }
+            }
+            traverse_dom_tree(cur_node->children, depth++);
+        }
+    }
+}
 
 // trying to make this function parallizeable by using BFS
-void traverse_dom_tree(xmlNode *node, int depth) {
-    // #pragma omp parallel
-    // {
-    //     #pragma omp single
-    //     {
-            q_t *q = createQueue(100);
-            enqueue(q, node);
+// void traverse_dom_tree(xmlNode *node, int depth) {
+//     printf("depth: %d\n", depth);
+//     // #pragma omp parallel
+//     // {
+//     //     #pragma omp single
+//     //     {
+//             enqueue(Q, node);
 
-            xmlNode *cur_node;
-            #pragma omp parallel for num_threads(NCORES)
-            while (!isEmpty(q)) 
-            {
-                // #pragma omp task
-                // {
-                    cur_node = dequeue(q);
-                    while (cur_node != NULL)
-                    { 
-                        if (cur_node->type == XML_ELEMENT_NODE) 
-                        {
-                            // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
-                            // print_properties(cur_node);
-                            if (check_if_alt_needed(cur_node)) {
-                                IMAGE_COUNT++;
-                                check_alt_text(cur_node);
-                            }
-                        }
-                        if (cur_node->children != NULL){
-                            enqueue(q, cur_node->children);
-                        }
-                        cur_node = cur_node->next;
-                    }
-                // }
-            }
-    //     }
-    // }
-}
+//             xmlNode *cur_node;
+//             #pragma omp parallel
+//             while (!isEmpty(Q)) 
+//             {
+//                 // #pragma omp task
+//                 // {
+//                     #pragma omp critical
+//                     cur_node = dequeue(Q);
+//                     while (cur_node != NULL)
+//                     { 
+//                         if (cur_node->type == XML_ELEMENT_NODE) 
+//                         {
+//                             // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
+//                             // print_properties(cur_node);
+//                             if (check_if_alt_needed(cur_node)) {
+//                                 IMAGE_COUNT++;
+//                                 check_alt_text(cur_node);
+//                             }
+//                         }
+//                         if (cur_node->children != NULL){
+//                             #pragma omp critical
+//                             enqueue(Q, cur_node->children);
+//                         }
+//                         cur_node = cur_node->next;
+//                     }
+//                 // }
+//             }
+//     //     }
+//     // }
+// }
 
 int main(int argc, char **argv)  {
     htmlDocPtr doc;
@@ -153,7 +153,7 @@ int main(int argc, char **argv)  {
     }
 
     /* Macro to check API for match with the DLL we are using */
-    LIBXML_TEST_VERSION    
+    LIBXML_TEST_VERSION
 
     doc = htmlReadFile(argv[1], NULL, HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING | HTML_PARSE_NONET);
     if (doc == NULL) 

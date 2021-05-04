@@ -11,13 +11,13 @@
 #include "libxml/parser.h"
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
-#include "queue.c"
+// #include "queue.c"
 #include <omp.h>
 
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
 int NCORES = -1;
-q_t *Q = createQueue(1000000);
+// q_t *Q = createQueue(1000000);
 
 
 // print the DOM tree
@@ -36,14 +36,9 @@ void print_properties(xmlNode *node) {
 // :input node (xmlNode*) - a parsed node of the DOM tree
 // :output none - increments ALT_COUNT if tag has alt text
 void check_alt_text(xmlNode *node) {
-    // #pragma omp parallel
-    // {
-    //     #pragma omp single 
-    //     {
     xmlAttr *property = node->properties;
     while (property != NULL) {
         const xmlChar *name = property->name;
-        // #pragma omp task
         if (strcmp((const char*)name, "alt") == 0) {
             xmlChar *value = xmlGetProp(node, name);
             if (strcmp((const char*)value, "") != 0) {
@@ -51,9 +46,6 @@ void check_alt_text(xmlNode *node) {
             }
         }
         property = property->next;
-        //     }
-        // }
-        //#pragma omp taskwait // may not be needed for this funciton
     }
 }
 

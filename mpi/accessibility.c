@@ -32,7 +32,7 @@ void print_properties(xmlNode *node) {
 // check if a tag has alt text
 // :input node (xmlNode*) - a parsed node of the DOM tree
 // :output none - increments ALT_COUNT if tag has alt text
-void check_alt_text(xmlNode *node) {
+void check_alt_text(xmlNode *node, int* alt) {
     xmlAttr *property = node->properties;
     while (property != NULL) {
         const xmlChar *name = property->name;
@@ -40,7 +40,7 @@ void check_alt_text(xmlNode *node) {
         if (strcmp((const char*)name, "alt") == 0) {
             xmlChar *value = xmlGetProp(node, name);
             if (strcmp((const char*)value, "") != 0) {
-                ALT_COUNT++;
+                *alt++;
             }
         }
         property = property->next;
@@ -57,7 +57,7 @@ bool check_if_alt_needed(xmlNode *node) {
            strcmp(name, "input") == 0;
 }
 
-void traverse_dom_tree(xmlNode *node, int depth) {
+void traverse_dom_tree(xmlNode *node, int depth, int *image, int *alt) {
     if (node == NULL) {
         return;
     }
@@ -65,33 +65,63 @@ void traverse_dom_tree(xmlNode *node, int depth) {
     for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
             if (check_if_alt_needed(cur_node)) {
-                IMAGE_COUNT++;
-                check_alt_text(cur_node);
+                *image++;
+                check_alt_text(cur_node, alt);
             }
         }
-        traverse_dom_tree(cur_node->children, depth++);
+        traverse_dom_tree(cur_node->children, depth++, image, alt);
     }
 }
 
 // go to depth 1 and accumulate all those nodes in an array
-void starting_nodes(xmlNode *node) {
+int starting_nodes(xmlNode *node) {
+    node = node->children;
 
+    if (node == NULL) {
+        return;
+    }
+
+    int numNodes = 0;
+    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
+        numNodes++;
+    }
+
+    STARTING_NODES = (xmlNode**)calloc(numNodes, sizeof(xmlNode*));
+
+    int counter = 0;
+    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
+        STARTING_NODES[counter] = cur_node;
+        counter++;
+    }
+
+    return numNodes;
 }
 
-void traverse_dom_tree_wrapper(int procID, int nproc) {
+void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
     const int root = 0;
     int tag = 0;
     MPI_Status status;
     MPI_Request request;
 
-    int *imageCount = (int*)calloc(nproc, sizeof(int));
-    int *altNeeded = (int*)calloc(nproc, sizeof(int));
+    int numNodes = starting_nodes(startingNode);
+
+    // int *imageCount = (int*)calloc(numNodes, sizeof(int));
+    // int *altNeeded = (int*)calloc(numNodes, sizeof(int));
+
+    for (int ind = procID; ind < numNodes; ind += nproc) {
+        int *image = (int*)calloc(1, sizeof(int));
+        int *alt = (int*)calloc(1, sizeof(int));
+
+        traverse_dom_tree(STARTING_NODES[ind], 0, image, alt);
+        printf("proc: %d, image: %d, alt %d", procID, *image, *alt);
+    }
 
     // TODO:
-    // Generate a list of starting nodes and broadcast it
+    // Generate a list of starting nodes
     // each process takes starting nodes using interleaved assignment
     // call traverse_dom_tree on the starting node
     // accumulate imageCount and altNeeded and send that back to root
+    // add up imageCount and altNeeded from every process
     // print out result
     
 }
@@ -147,7 +177,7 @@ int main(int argc, char **argv)  {
 
     // Run computation
     startTime = MPI_Wtime();
-    traverse_dom_tree(root_element, 0);
+    traverse_dom_tree_wrapper(procID, nproc, root_element);
     endTime = MPI_Wtime();
 
     MPI_Finalize();

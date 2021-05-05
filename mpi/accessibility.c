@@ -16,6 +16,7 @@
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
 int NCORES = -1;
+xmlNode *STARTING_NODES = NULL;
 
 // print the DOM tree
 void print_properties(xmlNode *node) {
@@ -72,6 +73,29 @@ void traverse_dom_tree(xmlNode *node, int depth) {
     }
 }
 
+// go to depth 1 and accumulate all those nodes in an array
+void starting_nodes(xmlNode *node) {
+
+}
+
+void traverse_dom_tree_wrapper(int procID, int nproc) {
+    const int root = 0;
+    int tag = 0;
+    MPI_Status status;
+    MPI_Request request;
+
+    int *imageCount = (int*)calloc(nproc, sizeof(int));
+    int *altNeeded = (int*)calloc(nproc, sizeof(int));
+
+    // TODO:
+    // Generate a list of starting nodes and broadcast it
+    // each process takes starting nodes using interleaved assignment
+    // call traverse_dom_tree on the starting node
+    // accumulate imageCount and altNeeded and send that back to root
+    // print out result
+    
+}
+
 int main(int argc, char **argv)  {
     htmlDocPtr doc;
     xmlNode *root_element = NULL;
@@ -107,17 +131,28 @@ int main(int argc, char **argv)  {
         return 0;
     }
     
-    // took timing code from wsp.c from assignment 3
-    struct timespec before, after;
-    printf("Root Node is %s\n", root_element->name);
-    clock_gettime(0, &before); // "0" should be CLOCK_REALTIME but vscode thinks it undefined for some reason
+    int procID;
+    int nproc;
+    double startTime;
+    double endTime;
+
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+
+    // Get process rank
+    MPI_Comm_rank(MPI_COMM_WORLD, &procID);
+
+    // Get total number of processes specificed at start of run
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+
+    // Run computation
+    startTime = MPI_Wtime();
     traverse_dom_tree(root_element, 0);
-    clock_gettime(0, &after); // same here
-    double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
-    putchar('\n');
-    printf("============ Time ============\n");
-    printf("Time: %.3f ms (%.3f s)\n", delta_ms, delta_ms / 1000.0);
+    endTime = MPI_Wtime();
+
+    MPI_Finalize();
     printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
+    printf("elapsed time for proc %d: %f\n", procID, endTime - startTime);
 
     xmlFreeDoc(doc);       // free document
     xmlCleanupParser();    // Free globals

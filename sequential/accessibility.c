@@ -11,14 +11,11 @@
 #include "libxml/parser.h"
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
-// #include "queue.c"
 #include <omp.h>
 
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
 int NCORES = -1;
-// q_t *Q = createQueue(1000000);
-
 
 // print the DOM tree
 void print_properties(xmlNode *node) {
@@ -99,46 +96,6 @@ void traverse_dom_tree(xmlNode *node, int depth) {
         }
     }
 }
-
-// trying to make this function parallizeable by using BFS
-// void traverse_dom_tree(xmlNode *node, int depth) {
-//     printf("depth: %d\n", depth);
-//     // #pragma omp parallel
-//     // {
-//     //     #pragma omp single
-//     //     {
-//             enqueue(Q, node);
-
-//             xmlNode *cur_node;
-//             #pragma omp parallel
-//             while (!isEmpty(Q)) 
-//             {
-//                 // #pragma omp task
-//                 // {
-//                     #pragma omp critical
-//                     cur_node = dequeue(Q);
-//                     while (cur_node != NULL)
-//                     { 
-//                         if (cur_node->type == XML_ELEMENT_NODE) 
-//                         {
-//                             // printf("Node type: Text, name: %s\n", (const char*)cur_node->name);
-//                             // print_properties(cur_node);
-//                             if (check_if_alt_needed(cur_node)) {
-//                                 IMAGE_COUNT++;
-//                                 check_alt_text(cur_node);
-//                             }
-//                         }
-//                         if (cur_node->children != NULL){
-//                             #pragma omp critical
-//                             enqueue(Q, cur_node->children);
-//                         }
-//                         cur_node = cur_node->next;
-//                     }
-//                 // }
-//             }
-//     //     }
-//     // }
-// }
 
 int main(int argc, char **argv)  {
     htmlDocPtr doc;

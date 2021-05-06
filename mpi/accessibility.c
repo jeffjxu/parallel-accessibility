@@ -16,7 +16,7 @@
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
 int NCORES = -1;
-xmlNode *STARTING_NODES = NULL;
+xmlNode **STARTING_NODES = NULL;
 
 // print the DOM tree
 void print_properties(xmlNode *node) {
@@ -40,7 +40,7 @@ void check_alt_text(xmlNode *node, int* alt) {
         if (strcmp((const char*)name, "alt") == 0) {
             xmlChar *value = xmlGetProp(node, name);
             if (strcmp((const char*)value, "") != 0) {
-                *alt++;
+                *alt = *alt + 1;
             }
         }
         property = property->next;
@@ -65,7 +65,7 @@ void traverse_dom_tree(xmlNode *node, int depth, int *image, int *alt) {
     for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
             if (check_if_alt_needed(cur_node)) {
-                *image++;
+                *image = *image + 1;
                 check_alt_text(cur_node, alt);
             }
         }
@@ -78,7 +78,7 @@ int starting_nodes(xmlNode *node) {
     node = node->children;
 
     if (node == NULL) {
-        return;
+        return 0;
     }
 
     int numNodes = 0;
@@ -100,27 +100,39 @@ int starting_nodes(xmlNode *node) {
 void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
     const int root = 0;
     int tag = 0;
-    MPI_Status status;
+    // MPI_Status status;
     MPI_Request request;
 
     int numNodes = starting_nodes(startingNode);
 
-    // int *imageCount = (int*)calloc(numNodes, sizeof(int));
-    // int *altNeeded = (int*)calloc(numNodes, sizeof(int));
+    int *imageCount = (int*)calloc(numNodes, sizeof(int));
+    int *altNeeded = (int*)calloc(numNodes, sizeof(int));
 
     for (int ind = procID; ind < numNodes; ind += nproc) {
         int *image = (int*)calloc(1, sizeof(int));
         int *alt = (int*)calloc(1, sizeof(int));
 
         traverse_dom_tree(STARTING_NODES[ind], 0, image, alt);
-        printf("proc: %d, image: %d, alt %d", procID, *image, *alt);
+        printf("proc: %d, image: %d, alt %d\n", procID, *image, *alt);
+
+        imageCount[ind] = *image;
+        altNeeded[ind] = *alt;
+
+        if (procID != root) {
+            MPI_Isend(&imageCount[ind], 1, MPI_INT, root, tag, MPI_COMM_WORLD, &request);
+            MPI_Isend(&altNeeded[ind], 1, MPI_INT, root, tag, MPI_COMM_WORLD, &request);
+        }
+    }
+
+    for (int i = 0; i < numNodes; i++) {
+        printf("%d: img: %d, alt: %d \n", i, imageCount[i], altNeeded[i]);
     }
 
     // TODO:
-    // Generate a list of starting nodes
-    // each process takes starting nodes using interleaved assignment
-    // call traverse_dom_tree on the starting node
-    // accumulate imageCount and altNeeded and send that back to root
+    // Generate a list of starting nodes - done
+    // each process takes starting nodes using interleaved assignment - done
+    // call traverse_dom_tree on the starting node - done
+    // accumulate imageCount and altNeeded and send that back to root - done
     // add up imageCount and altNeeded from every process
     // print out result
     

@@ -100,7 +100,7 @@ int starting_nodes(xmlNode *node) {
 void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
     const int root = 0;
     int tag = 0;
-    // MPI_Status status;
+    MPI_Status status;
     MPI_Request request;
 
     int numNodes = starting_nodes(startingNode);
@@ -128,14 +128,24 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
         printf("%d: img: %d, alt: %d \n", i, imageCount[i], altNeeded[i]);
     }
 
-    // TODO:
-    // Generate a list of starting nodes - done
-    // each process takes starting nodes using interleaved assignment - done
-    // call traverse_dom_tree on the starting node - done
-    // accumulate imageCount and altNeeded and send that back to root - done
-    // add up imageCount and altNeeded from every process
-    // print out result
-    
+    if (procID == root) {
+        int proc = 0;
+
+        for (int i = 0; i < numNodes; i++) {
+            proc = i % nproc;
+            if (proc == 0) {
+                continue;
+            }
+
+            MPI_Recv(&imageCount[i], 1, MPI_INT, proc, tag, MPI_COMM_WORLD, &status);
+            MPI_Recv(&altNeeded[i], 1, MPI_INT, proc, tag, MPI_COMM_WORLD, &status);
+        }
+
+        for (int j = 0; j < numNodes; j++) {
+            ALT_COUNT += altNeeded[j];
+            IMAGE_COUNT += imageCount[j];
+        }
+    }
 }
 
 int main(int argc, char **argv)  {

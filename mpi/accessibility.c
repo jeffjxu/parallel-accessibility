@@ -75,6 +75,7 @@ void traverse_dom_tree(xmlNode *node, int depth, int *image, int *alt) {
 
 // go to depth 1 and accumulate all those nodes in an array
 int starting_nodes(xmlNode *node) {
+    // printf("Starting element is: %s\n", node->name);
     node = node->children;
 
     if (node == NULL) {
@@ -105,6 +106,10 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
 
     int numNodes = starting_nodes(startingNode);
 
+    for (int a = 0; a < numNodes; a++) {
+        printf("Element: %s\n", STARTING_NODES[a]->name);
+    }
+
     int *imageCount = (int*)calloc(numNodes, sizeof(int));
     int *altNeeded = (int*)calloc(numNodes, sizeof(int));
 
@@ -112,7 +117,7 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
         int *image = (int*)calloc(1, sizeof(int));
         int *alt = (int*)calloc(1, sizeof(int));
 
-        traverse_dom_tree(STARTING_NODES[ind], 0, image, alt);
+        traverse_dom_tree(STARTING_NODES[ind]->children, 0, image, alt);
         printf("proc: %d, image: %d, alt %d\n", procID, *image, *alt);
 
         imageCount[ind] = *image;
@@ -152,18 +157,6 @@ int main(int argc, char **argv)  {
     htmlDocPtr doc;
     xmlNode *root_element = NULL;
 
-    if (argc != 3)  
-    {
-        fprintf(stderr,"Expecting two arguments: [file name] [processor count]\n");
-        return 0;
-    }
-
-    NCORES = atoi(argv[2]);
-    if(NCORES < 1) {
-        fprintf(stderr, "Illegal core count: %d\n", NCORES);
-        return 0;
-    }
-
     /* Macro to check API for match with the DLL we are using */
     LIBXML_TEST_VERSION
 
@@ -182,6 +175,8 @@ int main(int argc, char **argv)  {
         xmlFreeDoc(doc);
         return 0;
     }
+
+    printf("Root element is: %s\n", root_element->name);
     
     int procID;
     int nproc;
@@ -210,3 +205,6 @@ int main(int argc, char **argv)  {
     xmlCleanupParser();    // Free globals
     return 0;
 }
+
+// run using
+// mpirn -np [processor count] ./accessibility [input file]

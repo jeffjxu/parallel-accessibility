@@ -207,4 +207,4 @@ int main(int argc, char **argv)  {
 }
 
 // run using
-// mpirn -np [processor count] ./accessibility [input file]
+// mpirun -np [processor count] ./accessibility [input file]

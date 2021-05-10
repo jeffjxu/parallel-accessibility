@@ -98,23 +98,30 @@ bool check_if_alt_needed(xmlNode *node) {
 //         }
 //     }
 // }
+
 void traverse_dom_tree(xmlNode *node, int depth) {
     int d = depth;
     q_t *Q = createQueue(1000);
     enqueue(Q, node);
 
+    #pragma omp parallel
     while (!isEmpty(Q)){
-        //printf("size:%d\n",Q->size);
         xmlNode *cur = dequeue(Q);
         if (cur->children != NULL) {
             for (xmlNode *cur_node = cur->children; cur_node != NULL; cur_node = cur_node->next) {
-                if (cur_node->type == XML_ELEMENT_NODE) {
-                    if (check_if_alt_needed(cur_node)) {
-                        IMAGE_COUNT++;
-                        check_alt_text(cur_node);
-                    }
-                    if (cur_node->children != NULL){
-                        enqueue(Q, cur_node);
+                #pragma omp task 
+                {
+                    if (cur_node->type == XML_ELEMENT_NODE) {
+                        if (check_if_alt_needed(cur_node)) {
+                            #pragma omp critical 
+                            {
+                                IMAGE_COUNT++;
+                                check_alt_text(cur_node);
+                            }
+                        }
+                        if (cur_node->children != NULL){
+                            enqueue(Q, cur_node);
+                        }
                     }
                 }
                 d++;

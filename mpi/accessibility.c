@@ -106,9 +106,9 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
 
     int numNodes = starting_nodes(startingNode);
 
-    for (int a = 0; a < numNodes; a++) {
-        printf("Element: %s\n", STARTING_NODES[a]->name);
-    }
+    // for (int a = 0; a < numNodes; a++) {
+    //     printf("Element: %s\n", STARTING_NODES[a]->name);
+    // }
 
     int *imageCount = (int*)calloc(numNodes, sizeof(int));
     int *altNeeded = (int*)calloc(numNodes, sizeof(int));
@@ -118,7 +118,7 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
         int *alt = (int*)calloc(1, sizeof(int));
 
         traverse_dom_tree(STARTING_NODES[ind]->children, 0, image, alt);
-        printf("proc: %d, image: %d, alt %d\n", procID, *image, *alt);
+        //printf("proc: %d, image: %d, alt %d\n", procID, *image, *alt);
 
         imageCount[ind] = *image;
         altNeeded[ind] = *alt;
@@ -129,9 +129,9 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
         }
     }
 
-    for (int i = 0; i < numNodes; i++) {
-        printf("%d: img: %d, alt: %d \n", i, imageCount[i], altNeeded[i]);
-    }
+    // for (int i = 0; i < numNodes; i++) {
+    //     printf("%d: img: %d, alt: %d \n", i, imageCount[i], altNeeded[i]);
+    // }
 
     if (procID == root) {
         int proc = 0;
@@ -180,8 +180,13 @@ int main(int argc, char **argv)  {
     
     int procID;
     int nproc;
-    double startTime;
-    double endTime;
+    //double startTime;
+    //double endTime;
+
+    // took timing code from wsp.c from assignment 3
+    struct timespec before, after;
+    printf("Root Node is %s\n", root_element->name);
+    clock_gettime(0, &before); //
 
     // Initialize MPI
     MPI_Init(&argc, &argv);
@@ -193,13 +198,24 @@ int main(int argc, char **argv)  {
     MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 
     // Run computation
-    startTime = MPI_Wtime();
-    traverse_dom_tree_wrapper(procID, nproc, root_element);
-    endTime = MPI_Wtime();
+    //startTime = MPI_Wtime();
+    //traverse_dom_tree_wrapper(procID, nproc, root_element);
+    int numNodes = starting_nodes(root_element);
+    int *imageCount = (int*)calloc(numNodes, sizeof(int));
+    int *altNeeded = (int*)calloc(numNodes, sizeof(int));
+    traverse_dom_tree(root_element, 0, imageCount, altNeeded);
+
+    //endTime = MPI_Wtime();
 
     MPI_Finalize();
+    //printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
+    //printf("elapsed time for proc %d: %f\n", procID, endTime - startTime);
+    clock_gettime(0, &after); // same here
+    double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
+    putchar('\n');
+    printf("============ Time ============\n");
+    printf("Time: %.3f ms (%.3f s)\n", delta_ms, delta_ms / 1000.0);
     printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
-    printf("elapsed time for proc %d: %f\n", procID, endTime - startTime);
 
     xmlFreeDoc(doc);       // free document
     xmlCleanupParser();    // Free globals
@@ -207,4 +223,4 @@ int main(int argc, char **argv)  {
 }
 
 // run using
-// mpirn -np [processor count] ./accessibility [input file]
+// mpirun -np [processor count] ./accessibility [input file]

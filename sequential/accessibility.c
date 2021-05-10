@@ -11,7 +11,8 @@
 #include "libxml/parser.h"
 #include "libxml/tree.h"
 #include "libxml/HTMLparser.h"
-#include <omp.h>
+#include "queue.c"
+//#include <omp.h>
 
 int IMAGE_COUNT = 0;
 int ALT_COUNT = 0;
@@ -56,43 +57,68 @@ bool check_if_alt_needed(xmlNode *node) {
            strcmp(name, "input") == 0;
 }
 
-void traverse_dom_tree(xmlNode *node, int depth) {
-    if (node == NULL) {
-        return;
-    }
+// void traverse_dom_tree(xmlNode *node, int depth) {
+//     if (node == NULL) {
+//         //printf("depth: %d, imageCount: %d, altCount: %d\n", depth, IMAGE_COUNT, ALT_COUNT);
+//         return;
+//     }
 
-    if (depth == 0 || depth == 1) {
-        #pragma omp parallel
-        for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
-            #pragma omp task
-            {
+//     if (depth < 4) {
+//         #pragma omp parallel
+//         for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
+//             #pragma omp task
+//             {
+//                 if (cur_node->type == XML_ELEMENT_NODE) {
+//                     if (check_if_alt_needed(cur_node)) {
+//                         #pragma omp critical 
+//                         {
+//                             IMAGE_COUNT++;
+//                             check_alt_text(cur_node);
+//                         }
+//                     }
+//                 }
+//             }
+//             traverse_dom_tree(cur_node->children, depth++);
+//         }
+//     } else {
+//         for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next) {
+//             #pragma omp task
+//             {
+//                 if (cur_node->type == XML_ELEMENT_NODE) {
+//                     if (check_if_alt_needed(cur_node)) {
+//                         #pragma omp critical 
+//                         {
+//                             IMAGE_COUNT++;
+//                             check_alt_text(cur_node);
+//                         }
+//                     }
+//                 }
+//             }
+//             traverse_dom_tree(cur_node->children, depth++);
+//         }
+//     }
+// }
+void traverse_dom_tree(xmlNode *node, int depth) {
+    int d = depth;
+    q_t *Q = createQueue(1000);
+    enqueue(Q, node);
+
+    while (!isEmpty(Q)){
+        //printf("size:%d\n",Q->size);
+        xmlNode *cur = dequeue(Q);
+        if (cur->children != NULL) {
+            for (xmlNode *cur_node = cur->children; cur_node != NULL; cur_node = cur_node->next) {
                 if (cur_node->type == XML_ELEMENT_NODE) {
                     if (check_if_alt_needed(cur_node)) {
-                        #pragma omp critical 
-                        {
-                            IMAGE_COUNT++;
-                            check_alt_text(cur_node);
-                        }
+                        IMAGE_COUNT++;
+                        check_alt_text(cur_node);
+                    }
+                    if (cur_node->children != NULL){
+                        enqueue(Q, cur_node);
                     }
                 }
+                d++;
             }
-            traverse_dom_tree(cur_node->children, depth++);
-        }
-    } else {
-        for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next) {
-            #pragma omp task
-            {
-                if (cur_node->type == XML_ELEMENT_NODE) {
-                    if (check_if_alt_needed(cur_node)) {
-                        #pragma omp critical 
-                        {
-                            IMAGE_COUNT++;
-                            check_alt_text(cur_node);
-                        }
-                    }
-                }
-            }
-            traverse_dom_tree(cur_node->children, depth++);
         }
     }
 }

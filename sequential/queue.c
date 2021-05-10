@@ -15,14 +15,14 @@
 // A structure to represent a queue
 typedef struct Queue {
     int front, rear, size;
-    unsigned capacity;
+    int capacity;
     xmlNode** array;
 } q_t;
  
 // function to create a queue
 // of given capacity.
 // It initializes size of queue as 0
-struct Queue* createQueue(unsigned capacity)
+struct Queue* createQueue(int capacity)
 {
     struct Queue* queue = (struct Queue*)malloc(
         sizeof(struct Queue));
@@ -40,7 +40,7 @@ struct Queue* createQueue(unsigned capacity)
 // equal to the capacity
 int isFull(struct Queue* queue)
 {
-    return (queue->size == signed(queue->capacity));
+    return (queue->size == queue->capacity);
 }
  
 // Queue is empty when size is 0

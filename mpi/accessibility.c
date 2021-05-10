@@ -62,18 +62,30 @@ void traverse_dom_tree(xmlNode *node, int depth, int *image, int *alt) {
         return;
     }
 
-    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
-        if (cur_node->type == XML_ELEMENT_NODE) {
-            if (check_if_alt_needed(cur_node)) {
+    if (depth == 2) {
+        if (node->type == XML_ELEMENT_NODE) {
+            if (check_if_alt_needed(node)) {
                 *image = *image + 1;
-                check_alt_text(cur_node, alt);
+                check_alt_text(node, alt);
             }
         }
-        traverse_dom_tree(cur_node->children, depth++, image, alt);
+        depth = depth + 1;
+        traverse_dom_tree(node->children, depth++, image, alt);
+    } else {
+        for (xmlNode *curNode = node; curNode != NULL; curNode = curNode->next) {
+            if (curNode->type == XML_ELEMENT_NODE) {
+                if (check_if_alt_needed(curNode)) {
+                    *image = *image + 1;
+                    check_alt_text(curNode, alt);
+                }
+            }
+            depth = depth + 1;
+            traverse_dom_tree(curNode->children, depth++, image, alt);
+        }
     }
 }
 
-// go to depth 1 and accumulate all those nodes in an array
+// go to depth 2 and accumulate all those nodes in an array
 int starting_nodes(xmlNode *node) {
     // printf("Starting element is: %s\n", node->name);
     node = node->children;
@@ -83,16 +95,20 @@ int starting_nodes(xmlNode *node) {
     }
 
     int numNodes = 0;
-    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
-        numNodes++;
+    for (xmlNode *currNode = node; currNode != NULL; currNode = currNode->next) {
+        for (xmlNode *currNodeChildren = currNode->children; currNodeChildren != NULL; currNodeChildren = currNodeChildren->next) {
+            numNodes++;
+        }
     }
 
     STARTING_NODES = (xmlNode**)calloc(numNodes, sizeof(xmlNode*));
 
     int counter = 0;
-    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
-        STARTING_NODES[counter] = cur_node;
-        counter++;
+    for (xmlNode *currNode = node; currNode != NULL; currNode = currNode->next) {
+        for (xmlNode *currNodeChildren = currNode->children; currNodeChildren != NULL; currNodeChildren = currNodeChildren->next) {
+            STARTING_NODES[counter] = currNodeChildren;
+            counter++;
+        }
     }
 
     return numNodes;
@@ -106,9 +122,12 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
 
     int numNodes = starting_nodes(startingNode);
 
-    // for (int a = 0; a < numNodes; a++) {
-    //     printf("Element: %s\n", STARTING_NODES[a]->name);
-    // }
+    if (procID == root) {
+        printf("%d\n", nproc);
+        for (int a = 0; a < numNodes; a++) {
+            printf("Element: %s\n", STARTING_NODES[a]->name);
+        }
+    }
 
     int *imageCount = (int*)calloc(numNodes, sizeof(int));
     int *altNeeded = (int*)calloc(numNodes, sizeof(int));
@@ -117,7 +136,7 @@ void traverse_dom_tree_wrapper(int procID, int nproc, xmlNode* startingNode) {
         int *image = (int*)calloc(1, sizeof(int));
         int *alt = (int*)calloc(1, sizeof(int));
 
-        traverse_dom_tree(STARTING_NODES[ind]->children, 0, image, alt);
+        traverse_dom_tree(STARTING_NODES[ind], 2, image, alt);
         //printf("proc: %d, image: %d, alt %d\n", procID, *image, *alt);
 
         imageCount[ind] = *image;
@@ -185,8 +204,9 @@ int main(int argc, char **argv)  {
 
     // took timing code from wsp.c from assignment 3
     struct timespec before, after;
-    printf("Root Node is %s\n", root_element->name);
-    clock_gettime(0, &before); //
+    if (procID == 0) {
+        clock_gettime(0, &before); 
+    }
 
     // Initialize MPI
     MPI_Init(&argc, &argv);
@@ -199,23 +219,25 @@ int main(int argc, char **argv)  {
 
     // Run computation
     //startTime = MPI_Wtime();
-    //traverse_dom_tree_wrapper(procID, nproc, root_element);
-    int numNodes = starting_nodes(root_element);
-    int *imageCount = (int*)calloc(numNodes, sizeof(int));
-    int *altNeeded = (int*)calloc(numNodes, sizeof(int));
-    traverse_dom_tree(root_element, 0, imageCount, altNeeded);
+    traverse_dom_tree_wrapper(procID, nproc, root_element);
+    // int numNodes = starting_nodes(root_element);
+    // int *imageCount = (int*)calloc(numNodes, sizeof(int));
+    // int *altNeeded = (int*)calloc(numNodes, sizeof(int));
+    // traverse_dom_tree_wrapper(root_element, 0, imageCount, altNeeded);
 
     //endTime = MPI_Wtime();
 
     MPI_Finalize();
     //printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
     //printf("elapsed time for proc %d: %f\n", procID, endTime - startTime);
-    clock_gettime(0, &after); // same here
-    double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
-    putchar('\n');
-    printf("============ Time ============\n");
-    printf("Time: %.3f ms (%.3f s)\n", delta_ms, delta_ms / 1000.0);
-    printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
+    if (procID == 0) {
+        clock_gettime(0, &after); // same here
+        double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
+        putchar('\n');
+        printf("============ Time ============\n");
+        printf("Time: %.3f ms (%.3f s)\n", delta_ms, delta_ms / 1000.0);
+        printf("Your accessibility score: %d/%d\n", ALT_COUNT, IMAGE_COUNT);
+    }
 
     xmlFreeDoc(doc);       // free document
     xmlCleanupParser();    // Free globals

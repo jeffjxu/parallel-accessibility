@@ -30,7 +30,7 @@ void print_properties(xmlNode *node) {
 }
 
 int get_child_length(xmlNode *node) {
-    int length = 1;
+    int length = 0;
     xmlNode *cur = node;
     while (cur != NULL){
         length++;
@@ -39,16 +39,17 @@ int get_child_length(xmlNode *node) {
     return length;
 }
 
-// xmlNode **convert_to_array(xmlNode *node, int size) {
-//     int length = 1;
-//     xmlNode *cur = node;
-//     queue->array = (xmlNode**)malloc(queue->capacity * sizeof(xmlNode*));
-//     while (cur != NULL){
-//         length++;
-//         cur = cur->next;
-//     }
-//     return length;
-// }
+xmlNode **convert_to_array(xmlNode *node, int size) {
+    int index = 0;
+    xmlNode *cur = node;
+    xmlNode **array = (xmlNode**)malloc(size * sizeof(xmlNode*));
+    while (cur != NULL){
+        array[index] = cur;
+        index++;
+        cur = cur->next;
+    }
+    return array;
+}
 
 // check if a tag has alt text
 // Parallelized this while loop like this after viewing http://web.engr.oregonstate.edu/~mjb/cs575/Handouts/tasks.1pp.pdf slide 9 but this causes slowdown
@@ -86,19 +87,38 @@ void traverse_dom_tree_dfs(xmlNode *node, int depth) {
 
     // omp_set_dynamic(0);     // Explicitly disable dynamic teams
     // omp_set_num_threads(4);
-    // #pragma omp parallel
-    for (xmlNode *cur_node = node; cur_node != NULL; cur_node = cur_node->next) {
-        if (cur_node->type == XML_ELEMENT_NODE) {
-            if (check_if_alt_needed(cur_node)) {
-                #pragma omp critical 
-                {
-                    IMAGE_COUNT++;
-                    check_alt_text(cur_node);
+    int size = get_child_length(node);
+    xmlNode **nodes = convert_to_array(node, size);
+    if (depth < 5) {
+        #pragma omp parallel for num_threads(NCORES)
+        for (int i = 0; i < size; i++) {
+            xmlNode *cur_node = nodes[i];
+            if (cur_node->type == XML_ELEMENT_NODE) {
+                if (check_if_alt_needed(cur_node)) {
+                    #pragma omp critical 
+                    {
+                        IMAGE_COUNT++;
+                        check_alt_text(cur_node);
+                    }
                 }
             }
+            traverse_dom_tree_dfs(cur_node->children, depth++);
         }
-        traverse_dom_tree_dfs(cur_node->children, depth++);
-    }
+    } else {
+        for (int i = 0; i < size; i++) {
+            xmlNode *cur_node = nodes[i];
+            if (cur_node->type == XML_ELEMENT_NODE) {
+                if (check_if_alt_needed(cur_node)) {
+                    #pragma omp critical 
+                    {
+                        IMAGE_COUNT++;
+                        check_alt_text(cur_node);
+                    }
+                }
+            }
+            traverse_dom_tree_dfs(cur_node->children, depth++);
+        }
+    } 
 }
 
 void traverse_dom_tree_bfs(xmlNode *node) {
@@ -117,10 +137,10 @@ void traverse_dom_tree_bfs(xmlNode *node) {
                                 IMAGE_COUNT++;
                                 check_alt_text(cur_node);
                         }
+                    }  
                         if (cur_node->children != NULL){
                             enqueue(Q, cur_node);
                         }
-                    }
                 }
             }
         }
@@ -207,7 +227,7 @@ int main(int argc, char **argv)  {
     struct timespec before, after;
     printf("Root Node is %s\n", root_element->name);
     clock_gettime(0, &before); // "0" should be CLOCK_REALTIME but vscode thinks it undefined for some reason
-    traverse_dom_tree_wrap(root_element, 8);
+    traverse_dom_tree_dfs(root_element, 8);
     clock_gettime(0, &after); // same here
     double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
     putchar('\n');

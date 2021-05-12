@@ -85,8 +85,6 @@ void traverse_dom_tree_dfs(xmlNode *node, int depth) {
         return;
     }
 
-    // omp_set_dynamic(0);     // Explicitly disable dynamic teams
-    // omp_set_num_threads(4);
     int size = get_child_length(node);
     xmlNode **nodes = convert_to_array(node, size);
     if (depth < 5) {
@@ -102,6 +100,22 @@ void traverse_dom_tree_dfs(xmlNode *node, int depth) {
                     }
                 }
             }
+            // #pragma omp task
+            traverse_dom_tree_dfs(cur_node->children, depth++);
+        }
+    } else if (depth > 50) {
+        for (int i = 0; i < size; i++) {
+            xmlNode *cur_node = nodes[i];
+            if (cur_node->type == XML_ELEMENT_NODE) {
+                if (check_if_alt_needed(cur_node)) {
+                    #pragma omp critical 
+                    {
+                        IMAGE_COUNT++;
+                        check_alt_text(cur_node);
+                    }
+                }
+            }
+            #pragma omp task
             traverse_dom_tree_dfs(cur_node->children, depth++);
         }
     } else {
@@ -130,6 +144,10 @@ void traverse_dom_tree_bfs(xmlNode *node) {
         xmlNode *cur = dequeue(Q);
         if (cur->children != NULL) {
             for (xmlNode *cur_node = cur->children; cur_node != NULL; cur_node = cur_node->next) {
+            // int size = get_child_length(cur->children);
+            // xmlNode **nodes = convert_to_array(cur->children, size);
+            // for (int i = 0; i < size; i++) {
+                // xmlNode *cur_node = nodes[i];
                 if (cur_node->type == XML_ELEMENT_NODE) {
                     #pragma omp critical
                     {
@@ -227,7 +245,8 @@ int main(int argc, char **argv)  {
     struct timespec before, after;
     printf("Root Node is %s\n", root_element->name);
     clock_gettime(0, &before); // "0" should be CLOCK_REALTIME but vscode thinks it undefined for some reason
-    traverse_dom_tree_dfs(root_element, 8);
+     traverse_dom_tree_dfs(root_element, 8);
+    //traverse_dom_tree_wrap(root_element, 8);
     clock_gettime(0, &after); // same here
     double delta_ms = (double)(after.tv_sec - before.tv_sec) * 1000.0 + (after.tv_nsec - before.tv_nsec) / 1000000.0;
     putchar('\n');

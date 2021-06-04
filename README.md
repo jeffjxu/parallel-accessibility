@@ -1,5 +1,5 @@
 # parallel-accessibility
-
+A website accessibility evaluator in parallel. More detail in analysis.pdf.
 ## setup libxml2
 1. visit the [libxml2 website](http://www.xmlsoft.org/downloads.html)
 2. click on the FTP link for xmlsoft.org
